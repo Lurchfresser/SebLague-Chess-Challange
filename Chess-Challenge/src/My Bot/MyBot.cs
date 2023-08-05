@@ -17,7 +17,7 @@ public class MyBot : IChessBot
         foreach (Move move in moves)
         {
             board.MakeMove(move);
-            int eval = -recursiveLookUp(3, int.MinValue + 1, int.MaxValue - 1);
+            int eval = -recursiveLookUp(5, int.MinValue + 1, int.MaxValue - 1);
             if (eval > highestEval)
             {
                 highestEval = eval;
