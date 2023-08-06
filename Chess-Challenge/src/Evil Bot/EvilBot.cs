@@ -1,5 +1,7 @@
 ﻿using ChessChallenge.API;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace ChessChallenge.Example
 {
@@ -7,48 +9,84 @@ namespace ChessChallenge.Example
     // Plays randomly otherwise.
     public class EvilBot : IChessBot
     {
-        // Piece values: null, pawn, knight, bishop, rook, queen, king
-        int[] pieceValues = { 0, 100, 300, 300, 500, 900, 10000 };
+        Board board;
 
+        int[] values = { 0, 100, 300, 320, 500, 900, 0 };
         public Move Think(Board board, Timer timer)
         {
-            Move[] allMoves = board.GetLegalMoves();
-
-            // Pick a random move to play if nothing better is found
+            this.board = board;
+            Move[] moves = board.GetLegalMoves();
+            moves = moves.OrderByDescending(m => (int)m.CapturePieceType).ToArray();
+            double highestEval = -10;
             Random rng = new();
-            Move moveToPlay = allMoves[rng.Next(allMoves.Length)];
-            int highestValueCapture = 0;
-
-            foreach (Move move in allMoves)
+            List<Move> bestMoves = new List<Move>();
+            foreach (Move move in moves)
             {
-                // Always play checkmate in one
-                if (MoveIsCheckmate(board, move))
+                board.MakeMove(move);
+                double eval = -recursiveLookUp(5, -10f, 10f);
+                if (eval > highestEval)
                 {
-                    moveToPlay = move;
-                    break;
+                    highestEval = eval;
+                    bestMoves.Clear();
+                    bestMoves.Add(move);
                 }
-
-                // Find highest value capture
-                Piece capturedPiece = board.GetPiece(move.TargetSquare);
-                int capturedPieceValue = pieceValues[(int)capturedPiece.PieceType];
-
-                if (capturedPieceValue > highestValueCapture)
+                else if (eval == highestEval)
                 {
-                    moveToPlay = move;
-                    highestValueCapture = capturedPieceValue;
+                    bestMoves.Add(move);
                 }
+                board.UndoMove(move);
+            }
+            return bestMoves[rng.Next(bestMoves.Count)];
+        }
+        double recursiveLookUp(int depth, double alpha, double beta)
+        {
+            if (board.IsInCheckmate())
+            {
+                return -10;
+            }
+            else if (board.IsDraw())
+            {
+                return 0;
             }
 
-            return moveToPlay;
-        }
+            if (depth == 0)
+            {
 
-        // Test if this move gives checkmate
-        bool MoveIsCheckmate(Board board, Move move)
-        {
-            board.MakeMove(move);
-            bool isMate = board.IsInCheckmate();
-            board.UndoMove(move);
-            return isMate;
+                PieceList[] pieceLists = board.GetAllPieceLists();
+                int blackScore = 0;
+                int whiteScore = 0;
+                for (int i = 0; i < 12; i++)
+                {
+                    if (i > 5)
+                        blackScore += pieceLists[i].Count * values[(int)pieceLists[i].TypeOfPieceInList];
+                    else
+                        whiteScore += pieceLists[i].Count * values[(int)pieceLists[i].TypeOfPieceInList];
+
+                }
+                double whiteScoreUp = whiteScore - blackScore;
+                double score = 10d * Math.Tanh(whiteScoreUp / 32f);
+                return board.IsWhiteToMove ? score : -score;
+            }
+
+
+            Move[] moves = board.GetLegalMoves();
+            moves = moves.OrderByDescending(m => (int)m.CapturePieceType).ThenBy(m => (int)m.MovePieceType).ToArray();
+            double eval;
+            foreach (Move move in moves)
+            {
+
+                board.MakeMove(move);
+                eval = -recursiveLookUp(depth - 1, -beta, -alpha);
+                board.UndoMove(move);
+                if (eval >= beta)
+                {
+
+                    return beta;
+                }
+                alpha = Math.Max(eval, alpha);
+
+            }
+            return alpha;
         }
     }
 }

@@ -2,9 +2,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection.Metadata.Ecma335;
 
-public class MyBot : IChessBot
+public class MyBot1 : IChessBot
 {
     Board board;
 
@@ -20,7 +19,7 @@ public class MyBot : IChessBot
         foreach (Move move in moves)
         {
             board.MakeMove(move);
-            double eval = -recursiveLookUp(2, -10f, 10f);
+            double eval = -recursiveLookUp(5, -10f, 10f);
             if (eval > highestEval)
             {
                 highestEval = eval;
@@ -45,14 +44,24 @@ public class MyBot : IChessBot
         {
             return 0;
         }
-        if (board.IsInCheck())
-        {
-            depth++;
-        }
 
         if (depth == 0)
         {
-            return qSearch(alpha, beta);
+
+            PieceList[] pieceLists = board.GetAllPieceLists();
+            int blackScore = 0;
+            int whiteScore = 0;
+            for (int i = 0; i < 12; i++)
+            {
+                if (i > 5)
+                    blackScore += pieceLists[i].Count * values[(int)pieceLists[i].TypeOfPieceInList];
+                else
+                    whiteScore += pieceLists[i].Count * values[(int)pieceLists[i].TypeOfPieceInList];
+
+            }
+            double whiteScoreUp = whiteScore - blackScore;
+            double score = 10d * Math.Tanh(whiteScoreUp / 32f);
+            return board.IsWhiteToMove ? score : -score;
         }
 
 
@@ -73,50 +82,5 @@ public class MyBot : IChessBot
 
         }
         return alpha;
-    }
-
-    double qSearch(double alpha, double beta)
-    {
-        Move[] moves = board.GetLegalMoves(true);
-        if (moves.Length != 0)
-        {
-            moves = moves.OrderByDescending(m => (int)m.CapturePieceType).ThenBy(m => (int)m.MovePieceType).ToArray();
-            double eval;
-            foreach (Move move in moves)
-            {
-
-                board.MakeMove(move);
-                eval = -qSearch(-beta, -alpha);
-                board.UndoMove(move);
-                if (eval >= beta)
-                {
-
-                    return beta;
-                }
-                alpha = Math.Max(eval, alpha);
-
-            }
-            return alpha;
-        }
-
-        PieceList[] pieceLists = board.GetAllPieceLists();
-        int blackScore = 0;
-        int whiteScore = 0;
-        for (int i = 0; i < 12; i++)
-        {
-            if (i > 5)
-                blackScore += pieceLists[i].Count * values[(int)pieceLists[i].TypeOfPieceInList];
-            else
-                whiteScore += pieceLists[i].Count * values[(int)pieceLists[i].TypeOfPieceInList];
-
-        }
-        double whiteScoreUp = whiteScore - blackScore;
-        double score = 10d * Math.Tanh(whiteScoreUp / 32f);
-        if (score != 0)
-        {
-            Console.WriteLine(board.CreateDiagram(board.IsWhiteToMove,false,false));
-            Console.WriteLine(whiteScoreUp);
-        }
-        return board.IsWhiteToMove ? score : -score;
     }
 }
