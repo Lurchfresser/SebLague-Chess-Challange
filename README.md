@@ -1,3 +1,9 @@
+Not my project. Only the code in \Chess-Challenge\src\My Bot\MyBot.cs is my code. This is part of a chess bot tournament. [Original repo](https://github.com/SebLague/Chess-Challenge)
+
+
+
+
+
 # Chess Coding Challenge (C#)
 Welcome to the [chess coding challenge](https://youtu.be/iScy18pVR58)! This is a friendly competition in which your goal is to create a small chess bot (in C#) using the framework provided in this repository.
 Once submissions close, these bots will battle it out to discover which bot is best!
