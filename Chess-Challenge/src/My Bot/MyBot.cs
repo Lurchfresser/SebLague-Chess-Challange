@@ -2,7 +2,6 @@
 //using ChessChallenge.Chess;
 //using ChessChallenge.Chess;
 using System;
-using System.Collections.Generic;
 using System.Linq;
 
 public class MyBot : IChessBot
@@ -37,7 +36,6 @@ public class MyBot : IChessBot
 
     public Move Think(Board board, Timer timer)
     {
-        BitboardHelper.VisualizeBitboard(BitboardHelper.GetKingAttacks(board.GetKingSquare(true)));
         this.board = board;
         Move[] moves = board.GetLegalMoves();
         moves = moves.OrderByDescending(m => (int)m.CapturePieceType).ToArray();
@@ -46,9 +44,9 @@ public class MyBot : IChessBot
         foreach (Move move in moves)
         {
             board.MakeMove(move);
-            int eval = -recursiveLookUp(4, int.MinValue +2, -highestEval);
+            int eval = -recursiveLookUp(4, int.MinValue + 2, -highestEval);
             if (eval > highestEval)
-            {   
+            {
                 highestEval = eval;
                 bestMove = move;
             }
@@ -72,7 +70,8 @@ public class MyBot : IChessBot
         }
 
         if (depth == 0)
-        {   int q = qSearch(alpha, beta);
+        {
+            int q = qSearch(alpha, beta);
             return q;
         }
 
@@ -149,20 +148,20 @@ public class MyBot : IChessBot
             int endgameeval = 0;
             int file = board.GetKingSquare(!isWhiteToMove).File;
             int rank = board.GetKingSquare(!isWhiteToMove).Rank;
-            endgameeval += Math.Max(3- rank,rank - 4);
+            endgameeval += Math.Max(3 - rank, rank - 4);
             endgameeval += Math.Max(3 - file, file - 4);
 
             int endgameeval2 = (14 - Math.Abs((board.GetKingSquare(isWhiteToMove).Rank - board.GetKingSquare(!isWhiteToMove).Rank)) - Math.Abs((board.GetKingSquare(isWhiteToMove).File - board.GetKingSquare(!isWhiteToMove).File)));
-            
-            stand_pat += endgameeval*20 + endgameeval2*20;
+
+            stand_pat += endgameeval * 20 + endgameeval2 * 20;
 
         }
 
-        
+
 
         if (stand_pat >= beta)
             return beta;
-        
+
         alpha = Math.Max(stand_pat, alpha);
 
         Move[] moves = board.GetLegalMoves(true);
@@ -199,16 +198,24 @@ public class MyBot : IChessBot
     int pieceEval(PieceList pieceList, bool isWhite)
     {
         int val = 0;
+        ulong adjacentKingSquares = BitboardHelper.GetKingAttacks(board.GetKingSquare(!isWhite));
         foreach (Piece piece in pieceList)
         {
-            val += BitboardHelper.GetNumberOfSetBits(BitboardHelper.GetPieceAttacks(pieceList.TypeOfPieceInList, piece.Square, board, isWhite));
+            ulong pieceAttacks = BitboardHelper.GetPieceAttacks(pieceList.TypeOfPieceInList, piece.Square, board, isWhite);
+            val += BitboardHelper.GetNumberOfSetBits(pieceAttacks);
+
+            if ((pieceAttacks & adjacentKingSquares) != 0)
+            {
+                val += 15;
+            }
+
             if (pieceList.TypeOfPieceInList == PieceType.Pawn)
             {
-                val += (int)Math.Pow((isWhite ? piece.Square.Rank : 7 - piece.Square.Rank),3)/20;
+                val += (int)Math.Pow((isWhite ? piece.Square.Rank : 7 - piece.Square.Rank), 3) / 20;
             }
 
         }
-        return pieceList.Count * getPieceValue(pieceList.TypeOfPieceInList) + val*4;
+        return pieceList.Count * getPieceValue(pieceList.TypeOfPieceInList) + val * 4;
     }
 
     (Move[], int, bool) orderAndcheckForTranspos(int alpha, int beta, int depth, Move[] moves)
