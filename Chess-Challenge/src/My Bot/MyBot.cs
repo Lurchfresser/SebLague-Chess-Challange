@@ -10,7 +10,7 @@ public class MyBot : IChessBot
 
     Board board;
 
-    int[] values = { 0, 100, 300, 320, 500, 900, 0 };
+    int[] values = { 0, 100, 300, 320, 500, 900, 0 }, kingAttackervPieceValues = { 0, 0, 20, 20, 40, 80, 0 }, kingAttackweight = { 0, 50, 75, 88, 94, 97, 99 };
 
     int getPieceValue(PieceType pieceType)
     {
@@ -31,7 +31,6 @@ public class MyBot : IChessBot
     int noTT;
     int bestTTmatch;
     bool betaCutOff;
-
 
 
     public Move Think(Board board, Timer timer)
@@ -71,8 +70,8 @@ public class MyBot : IChessBot
 
         if (depth == 0)
         {
-            int q = qSearch(alpha, beta);
-            return q;
+
+            return qSearch(alpha, beta);
         }
 
 
@@ -125,16 +124,10 @@ public class MyBot : IChessBot
         {
             return 0;
         }
-        PieceList[] pieceLists = board.GetAllPieceLists();
-        int blackScore = 0;
-        int whiteScore = 0;
-        for (int i = 0; i < 12; i++)
-        {
-            if (i > 5)
-                blackScore += pieceEval(pieceLists[i], false);
-            else
-                whiteScore += pieceEval(pieceLists[i], true);
-        }
+
+        int blackScore = pieceEval(Array.FindAll(board.GetAllPieceLists(), list => !list.IsWhitePieceList));
+        int whiteScore = pieceEval(Array.FindAll(board.GetAllPieceLists(), list => list.IsWhitePieceList));
+
         int whiteScoreUp = whiteScore - blackScore;
 
         int stand_pat = isWhiteToMove ? whiteScoreUp : -whiteScoreUp;
@@ -143,7 +136,7 @@ public class MyBot : IChessBot
 
 
         //easy endgames
-        if ((isWhiteToMove ? blackScore : whiteScore) < 299)
+        if (((isWhiteToMove ? blackScore : whiteScore) < 300) && (stand_pat > 499))
         {
             int endgameeval = 0;
             int file = board.GetKingSquare(!isWhiteToMove).File;
@@ -151,9 +144,9 @@ public class MyBot : IChessBot
             endgameeval += Math.Max(3 - rank, rank - 4);
             endgameeval += Math.Max(3 - file, file - 4);
 
-            int endgameeval2 = (14 - Math.Abs((board.GetKingSquare(isWhiteToMove).Rank - board.GetKingSquare(!isWhiteToMove).Rank)) - Math.Abs((board.GetKingSquare(isWhiteToMove).File - board.GetKingSquare(!isWhiteToMove).File)));
+            endgameeval += (14 - Math.Abs((board.GetKingSquare(isWhiteToMove).Rank - board.GetKingSquare(!isWhiteToMove).Rank)) - Math.Abs((board.GetKingSquare(isWhiteToMove).File - board.GetKingSquare(!isWhiteToMove).File)));
 
-            stand_pat += endgameeval * 20 + endgameeval2 * 20;
+            stand_pat += endgameeval * 10;
 
         }
 
@@ -171,9 +164,9 @@ public class MyBot : IChessBot
             foreach (Move move in moves)
             {
                 /*if (getPieceValue(move.CapturePieceType) + 200 + stand_pat < alpha)
-                {
-                    continue;
-                }*/
+            	{
+                	continue;
+            	}*/
 
                 board.MakeMove(move);
 
@@ -193,29 +186,46 @@ public class MyBot : IChessBot
         return alpha;
     }
 
-
-
-    int pieceEval(PieceList pieceList, bool isWhite)
+    int pieceEval(PieceList[] pieceLists)
     {
-        int val = 0;
+        bool isWhite = pieceLists[0].IsWhitePieceList;
+        int score = 0, kingAttackingPiecesCount = 0, valueOfKingAttacks = 0;
+
         ulong adjacentKingSquares = BitboardHelper.GetKingAttacks(board.GetKingSquare(!isWhite));
-        foreach (Piece piece in pieceList)
+
+
+
+        if (isWhite)
+            adjacentKingSquares |= adjacentKingSquares >> 8;
+        else
+            adjacentKingSquares |= adjacentKingSquares << 8;
+
+        foreach (PieceList pieceList in pieceLists)
         {
-            ulong pieceAttacks = BitboardHelper.GetPieceAttacks(pieceList.TypeOfPieceInList, piece.Square, board, isWhite);
-            val += BitboardHelper.GetNumberOfSetBits(pieceAttacks);
-
-            if ((pieceAttacks & adjacentKingSquares) != 0)
+            int kingAttackValue = kingAttackervPieceValues[(int)pieceList.TypeOfPieceInList];
+            foreach (Piece piece in pieceList)
             {
-                val += 15;
-            }
+                ulong pieceAttacks = BitboardHelper.GetPieceAttacks(pieceList.TypeOfPieceInList, piece.Square, board, isWhite);
+                score += BitboardHelper.GetNumberOfSetBits(pieceAttacks) * 4;
 
-            if (pieceList.TypeOfPieceInList == PieceType.Pawn)
-            {
-                val += (int)Math.Pow((isWhite ? piece.Square.Rank : 7 - piece.Square.Rank), 3) / 20;
-            }
 
+                if (pieceList.TypeOfPieceInList == PieceType.Pawn)
+                {
+                    score += (int)Math.Pow((isWhite ? piece.Square.Rank : 7 - piece.Square.Rank), 3) / 5;
+                }
+
+
+                else if ((pieceAttacks & adjacentKingSquares) + (ulong)kingAttackValue != 0)
+                {
+                    valueOfKingAttacks++;
+                    kingAttackingPiecesCount += BitboardHelper.GetNumberOfSetBits(pieceAttacks & adjacentKingSquares) * kingAttackValue;
+                }
+
+            }
+            score += pieceList.Count * getPieceValue(pieceList.TypeOfPieceInList);
         }
-        return pieceList.Count * getPieceValue(pieceList.TypeOfPieceInList) + val * 4;
+
+        return score + (valueOfKingAttacks * kingAttackweight[Math.Min(6, kingAttackingPiecesCount)]) / 100;
     }
 
     (Move[], int, bool) orderAndcheckForTranspos(int alpha, int beta, int depth, Move[] moves)
@@ -246,8 +256,7 @@ public class MyBot : IChessBot
                         }
                         else if (transposition.flag == 2 && transposition.eval >= beta)
                         {
-                            bestTTmatch = transposition.eval;
-                            betaCutOff = true;
+                            bestTTmatch = Math.Max(bestTTmatch, transposition.eval);
                             board.UndoMove(move);
                             return int.MinValue;
                         }
@@ -277,7 +286,3 @@ public class MyBot : IChessBot
         return (moves2.Take(noTT).ToArray(), bestTTmatch, betaCutOff);
     }
 }
-
-
-
-
